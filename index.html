@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="en" ng-app="libraryApp">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Manage library books, members, and loans.">
+    <title>Bookwise | Library management</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body ng-controller="LibraryController as vm" ng-cloak>
+    <aside class="sidebar">
+      <a class="brand" href="#" ng-click="vm.setView('overview')">
+        <span class="brand-mark">B</span>
+        <span>bookwise<small>LIBRARY MANAGER</small></span>
+      </a>
+      <p class="nav-label">WORKSPACE</p>
+      <nav aria-label="Main navigation">
+        <button ng-class="{active: vm.view === 'overview'}" ng-click="vm.setView('overview')"><span>▦</span> Overview</button>
+        <button ng-class="{active: vm.view === 'books'}" ng-click="vm.setView('books')"><span>▤</span> Books</button>
+        <button ng-class="{active: vm.view === 'members'}" ng-click="vm.setView('members')"><span>♙</span> Members</button>
+        <button ng-class="{active: vm.view === 'loans'}" ng-click="vm.setView('loans')"><span>↗</span> Loans</button>
+      </nav>
+      <div class="sidebar-note">
+        <span class="note-icon">✦</span>
+        <strong>A little order goes a long way.</strong>
+        <p>Keep your collection, members, and checkouts in one place.</p>
+      </div>
+      <div class="sidebar-foot"><span class="online-dot"></span> Connected to your library</div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">LIBRARY / {{ vm.viewLabel() }}</p>
+          <h1>{{ vm.pageTitle() }}</h1>
+        </div>
+        <div class="top-actions">
+          <label class="search-box" ng-if="vm.view !== 'overview'">
+            <span>⌕</span>
+            <input type="search" placeholder="Search {{ vm.view }}..." ng-model="vm.search" aria-label="Search">
+          </label>
+          <button class="button button-primary" ng-click="vm.openCreate()" ng-if="vm.view === 'books' || vm.view === 'members'">
+            <span>＋</span> Add {{ vm.view === 'books' ? 'book' : 'member' }}
+          </button>
+          <button class="button button-primary" ng-click="vm.openLoan()" ng-if="vm.view === 'loans'"><span>＋</span> Check out book</button>
+        </div>
+      </header>
+
+      <div class="notice notice-error" ng-if="vm.error" role="alert">{{ vm.error }} <button ng-click="vm.error = ''" aria-label="Dismiss">×</button></div>
+      <div class="notice notice-success" ng-if="vm.success" role="status">{{ vm.success }}</div>
+      <div class="loading" ng-if="vm.loading"><span class="spinner"></span> Loading your library...</div>
+
+      <section ng-if="!vm.loading && vm.view === 'overview'">
+        <div class="welcome-card">
+          <div><p class="eyebrow light">YOUR LIBRARY AT A GLANCE</p><h2>Make room for<br>the next great read.</h2><p>Here’s what’s happening across your collection today.</p></div>
+          <div class="welcome-art" aria-hidden="true"><span>✦</span><i></i><b></b><em></em></div>
+        </div>
+        <div class="stats-grid">
+          <article class="stat-card"><span class="stat-icon violet">▤</span><span class="stat-label">Total titles</span><strong>{{ vm.stats.titles || 0 }}</strong><small>Across your collection</small></article>
+          <article class="stat-card"><span class="stat-icon mint">♙</span><span class="stat-label">Members</span><strong>{{ vm.stats.members || 0 }}</strong><small>Registered readers</small></article>
+          <article class="stat-card"><span class="stat-icon amber">↗</span><span class="stat-label">Books on loan</span><strong>{{ vm.stats.onLoan || 0 }}</strong><small>Currently checked out</small></article>
+          <article class="stat-card"><span class="stat-icon rose">!</span><span class="stat-label">Overdue</span><strong>{{ vm.stats.overdue || 0 }}</strong><small>Past their due date</small></article>
+        </div>
+        <div class="section-heading"><div><p class="eyebrow">KEEP AN EYE ON</p><h2>Recent loans</h2></div><button class="text-button" ng-click="vm.setView('loans')">View all <span>→</span></button></div>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>BOOK</th><th>MEMBER</th><th>CHECKED OUT</th><th>DUE DATE</th><th>STATUS</th></tr></thead>
+            <tbody>
+              <tr ng-repeat="loan in vm.recentLoans track by loan.id">
+                <td><strong>{{ loan.book.title }}</strong><small>{{ loan.book.author }}</small></td>
+                <td>{{ loan.member.name }}</td><td>{{ vm.formatDate(loan.loan_date) }}</td><td>{{ vm.formatDate(loan.due_date) }}</td>
+                <td><span class="badge" ng-class="vm.loanStatusClass(loan)">{{ vm.loanStatus(loan) }}</span></td>
+              </tr>
+              <tr ng-if="vm.recentLoans.length === 0"><td colspan="5" class="empty-cell">No loans yet. Check out a book to get started.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section ng-if="!vm.loading && vm.view === 'books'">
+        <div class="section-heading compact"><div><p class="eyebrow">YOUR COLLECTION</p><h2>Books <span class="count">{{ vm.filteredBooks().length }}</span></h2></div></div>
+        <div class="table-wrap">
+          <table><thead><tr><th>TITLE</th><th>AUTHOR</th><th>ISBN</th><th>CATEGORY</th><th>AVAILABLE</th><th></th></tr></thead>
+            <tbody><tr ng-repeat="book in vm.filteredBooks() track by book.id">
+              <td><strong>{{ book.title }}</strong><small>{{ book.publisher || 'Publisher not set' }}</small></td><td>{{ book.author }}</td><td>{{ book.isbn || '—' }}</td><td><span class="category">{{ book.category || 'General' }}</span></td><td><span class="availability" ng-class="{'unavailable': book.available_copies === 0}">{{ book.available_copies }} / {{ book.total_copies }}</span></td>
+              <td class="row-actions"><button title="Edit book" ng-click="vm.openEditBook(book)">Edit</button><button class="danger-link" title="Delete book" ng-click="vm.deleteBook(book)">Delete</button></td>
+            </tr><tr ng-if="vm.filteredBooks().length === 0"><td colspan="6" class="empty-cell">No books found. Add your first book to the collection.</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section ng-if="!vm.loading && vm.view === 'members'">
+        <div class="section-heading compact"><div><p class="eyebrow">YOUR COMMUNITY</p><h2>Members <span class="count">{{ vm.filteredMembers().length }}</span></h2></div></div>
+        <div class="table-wrap">
+          <table><thead><tr><th>MEMBER</th><th>EMAIL</th><th>PHONE</th><th>JOINED</th><th></th></tr></thead>
+            <tbody><tr ng-repeat="member in vm.filteredMembers() track by member.id">
+              <td><div class="member-cell"><span class="avatar">{{ vm.initials(member.name) }}</span><strong>{{ member.name }}</strong></div></td><td>{{ member.email }}</td><td>{{ member.phone || '—' }}</td><td>{{ vm.formatDate(member.created_at) }}</td>
+              <td class="row-actions"><button title="Edit member" ng-click="vm.openEditMember(member)">Edit</button><button class="danger-link" title="Delete member" ng-click="vm.deleteMember(member)">Delete</button></td>
+            </tr><tr ng-if="vm.filteredMembers().length === 0"><td colspan="5" class="empty-cell">No members found. Add your first library member.</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section ng-if="!vm.loading && vm.view === 'loans'">
+        <div class="section-heading compact"><div><p class="eyebrow">CIRCULATION DESK</p><h2>Loans <span class="count">{{ vm.filteredLoans().length }}</span></h2></div><label class="filter-label">Show <select ng-model="vm.loanFilter"><option value="active">Active loans</option><option value="overdue">Overdue</option><option value="returned">Returned</option><option value="all">All loans</option></select></label></div>
+        <div class="table-wrap">
+          <table><thead><tr><th>BOOK</th><th>MEMBER</th><th>CHECKED OUT</th><th>DUE DATE</th><th>STATUS</th><th></th></tr></thead>
+            <tbody><tr ng-repeat="loan in vm.filteredLoans() track by loan.id">
+              <td><strong>{{ loan.book.title }}</strong><small>{{ loan.book.author }}</small></td><td>{{ loan.member.name }}<small>{{ loan.member.email }}</small></td><td>{{ vm.formatDate(loan.loan_date) }}</td><td>{{ vm.formatDate(loan.due_date) }}</td><td><span class="badge" ng-class="vm.loanStatusClass(loan)">{{ vm.loanStatus(loan) }}</span></td>
+              <td class="row-actions"><button ng-if="!loan.returned_at" ng-click="vm.returnLoan(loan)">Return</button></td>
+            </tr><tr ng-if="vm.filteredLoans().length === 0"><td colspan="6" class="empty-cell">No loans match this filter.</td></tr></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <div class="modal-backdrop" ng-if="vm.modal" ng-click="vm.closeModal($event)">
+      <section class="modal" role="dialog" aria-modal="true" ng-click="$event.stopPropagation()">
+        <button class="modal-close" ng-click="vm.modal = null" aria-label="Close dialog">×</button>
+        <div ng-if="vm.modal === 'book'">
+          <p class="eyebrow">COLLECTION</p><h2>{{ vm.form.id ? 'Edit book' : 'Add a book' }}</h2><p class="modal-intro">Keep the details of each title up to date.</p>
+          <form ng-submit="vm.saveBook()">
+            <label>Book title<input ng-model="vm.form.title" required maxlength="200" placeholder="e.g. The Midnight Library"></label>
+            <label>Author<input ng-model="vm.form.author" required maxlength="160" placeholder="Author name"></label>
+            <div class="form-row"><label>ISBN<input ng-model="vm.form.isbn" maxlength="32" placeholder="Optional"></label><label>Category<input ng-model="vm.form.category" maxlength="80" placeholder="Fiction"></label></div>
+            <label>Publisher<input ng-model="vm.form.publisher" maxlength="160" placeholder="Optional"></label>
+            <label>Total copies<input type="number" ng-model="vm.form.total_copies" min="1" max="100000" required></label>
+            <div class="modal-actions"><button type="button" class="button button-quiet" ng-click="vm.modal = null">Cancel</button><button class="button button-primary" ng-disabled="vm.saving">{{ vm.saving ? 'Saving...' : 'Save book' }}</button></div>
+          </form>
+        </div>
+        <div ng-if="vm.modal === 'member'">
+          <p class="eyebrow">COMMUNITY</p><h2>{{ vm.form.id ? 'Edit member' : 'Add a member' }}</h2><p class="modal-intro">Add the contact details for a library member.</p>
+          <form ng-submit="vm.saveMember()">
+            <label>Full name<input ng-model="vm.form.name" required maxlength="160" placeholder="Reader name"></label>
+            <label>Email address<input type="email" ng-model="vm.form.email" required maxlength="254" placeholder="reader@example.com"></label>
+            <label>Phone<input type="tel" ng-model="vm.form.phone" maxlength="40" placeholder="Optional"></label>
+            <div class="modal-actions"><button type="button" class="button button-quiet" ng-click="vm.modal = null">Cancel</button><button class="button button-primary" ng-disabled="vm.saving">{{ vm.saving ? 'Saving...' : 'Save member' }}</button></div>
+          </form>
+        </div>
+        <div ng-if="vm.modal === 'loan'">
+          <p class="eyebrow">CIRCULATION DESK</p><h2>Check out a book</h2><p class="modal-intro">Choose a member and an available title.</p>
+          <form ng-submit="vm.createLoan()">
+            <label>Member<select ng-model="vm.form.member_id" required><option value="">Select a member</option><option ng-repeat="member in vm.members track by member.id" value="{{ member.id }}">{{ member.name }} ({{ member.email }})</option></select></label>
+            <label>Book<select ng-model="vm.form.book_id" required><option value="">Select an available book</option><option ng-repeat="book in vm.availableBooks() track by book.id" value="{{ book.id }}">{{ book.title }} — {{ book.available_copies }} available</option></select></label>
+            <label>Due date<input type="date" ng-model="vm.form.due_date" required></label>
+            <div class="modal-actions"><button type="button" class="button button-quiet" ng-click="vm.modal = null">Cancel</button><button class="button button-primary" ng-disabled="vm.saving || !vm.availableBooks().length">{{ vm.saving ? 'Checking out...' : 'Confirm checkout' }}</button></div>
+          </form>
+        </div>
+      </section>
+    </div>
+    <script src="/vendor/angular.min.js"></script>
+    <script src="/app.js"></script>
+  </body>
+</html>

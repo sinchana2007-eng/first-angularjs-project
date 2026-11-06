@@ -1,0 +1,6 @@
+{
+  "name": "Bookwise - Library Management",
+  "description": "AngularJS library management app for books, members, and loans backed by Node.js and Supabase.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
